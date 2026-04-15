@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -84,6 +85,11 @@ type SCIMUserResponse struct {
 	Active bool `json:"active"`
 }
 
+type SCIMListResponse struct {
+	TotalResults int                `json:"totalResults"`
+	Resources    []SCIMUserResponse `json:"Resources"`
+}
+
 type UpdateMembershipRequest struct {
 	UserID string `json:"userId,omitempty"` // User ID from SCIM
 	Email  string `json:"email,omitempty"`  // Or email
@@ -115,6 +121,9 @@ type OrganizationClient interface {
 	UpdateMembership(ctx context.Context, membershipID string, request *UpdateMembershipRequest) (*OrganizationMembership, error)
 	RemoveMember(ctx context.Context, membershipID string) error
 	CreateSCIMUser(ctx context.Context, request *SCIMUserRequest) (*SCIMUserResponse, error)
+	FindSCIMUserByEmail(ctx context.Context, email string) (*SCIMUserResponse, error)
+	UpdateSCIMUser(ctx context.Context, userID string, request *SCIMUserRequest) (*SCIMUserResponse, error)
+	DeleteSCIMUser(ctx context.Context, userID string) error
 }
 
 type organizationClientImpl struct {
@@ -373,6 +382,54 @@ func (c *organizationClientImpl) CreateSCIMUser(ctx context.Context, request *SC
 	}
 
 	return &scimUser, nil
+}
+
+func (c *organizationClientImpl) FindSCIMUserByEmail(ctx context.Context, email string) (*SCIMUserResponse, error) {
+	filter := fmt.Sprintf("userName eq \"%s\"", email)
+	encodedPath := fmt.Sprintf("api/public/scim/Users?filter=%s", url.QueryEscape(filter))
+
+	resp, err := c.makeRequest(ctx, http.MethodGet, encodedPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find SCIM user: %w", err)
+	}
+
+	var list SCIMListResponse
+	if err := decodeResponse(resp, &list); err != nil {
+		return nil, fmt.Errorf("failed to decode SCIM user list response: %w", err)
+	}
+
+	if list.TotalResults == 0 || len(list.Resources) == 0 {
+		return nil, fmt.Errorf("cannot find user with email %q", email)
+	}
+
+	return &list.Resources[0], nil
+}
+
+func (c *organizationClientImpl) UpdateSCIMUser(ctx context.Context, userID string, request *SCIMUserRequest) (*SCIMUserResponse, error) {
+	resp, err := c.makeRequest(ctx, http.MethodPut, fmt.Sprintf("api/public/scim/Users/%s", userID), request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update SCIM user: %w", err)
+	}
+
+	var user SCIMUserResponse
+	if err := decodeResponse(resp, &user); err != nil {
+		return nil, fmt.Errorf("failed to decode SCIM user response: %w", err)
+	}
+
+	return &user, nil
+}
+
+func (c *organizationClientImpl) DeleteSCIMUser(ctx context.Context, userID string) error {
+	resp, err := c.makeRequest(ctx, http.MethodDelete, fmt.Sprintf("api/public/scim/Users/%s", userID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete SCIM user: %w", err)
+	}
+
+	if err := decodeResponse(resp, nil); err != nil {
+		return fmt.Errorf("failed to delete SCIM user: %w", err)
+	}
+
+	return nil
 }
 
 func (c *organizationClientImpl) makeRequest(ctx context.Context, methodType, apiPath string, body any) (*http.Response, error) {

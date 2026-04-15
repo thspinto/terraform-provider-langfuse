@@ -212,6 +212,50 @@ func (mr *MockOrganizationClientMockRecorder) UpdateMembership(arg0, arg1, arg2 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMembership", reflect.TypeOf((*MockOrganizationClient)(nil).UpdateMembership), arg0, arg1, arg2)
 }
 
+// FindSCIMUserByEmail mocks base method.
+func (m *MockOrganizationClient) FindSCIMUserByEmail(arg0 context.Context, arg1 string) (*langfuse.SCIMUserResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindSCIMUserByEmail", arg0, arg1)
+	ret0, _ := ret[0].(*langfuse.SCIMUserResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindSCIMUserByEmail indicates an expected call of FindSCIMUserByEmail.
+func (mr *MockOrganizationClientMockRecorder) FindSCIMUserByEmail(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindSCIMUserByEmail", reflect.TypeOf((*MockOrganizationClient)(nil).FindSCIMUserByEmail), arg0, arg1)
+}
+
+// UpdateSCIMUser mocks base method.
+func (m *MockOrganizationClient) UpdateSCIMUser(arg0 context.Context, arg1 string, arg2 *langfuse.SCIMUserRequest) (*langfuse.SCIMUserResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSCIMUser", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*langfuse.SCIMUserResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSCIMUser indicates an expected call of UpdateSCIMUser.
+func (mr *MockOrganizationClientMockRecorder) UpdateSCIMUser(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSCIMUser", reflect.TypeOf((*MockOrganizationClient)(nil).UpdateSCIMUser), arg0, arg1, arg2)
+}
+
+// DeleteSCIMUser mocks base method.
+func (m *MockOrganizationClient) DeleteSCIMUser(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteSCIMUser", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteSCIMUser indicates an expected call of DeleteSCIMUser.
+func (mr *MockOrganizationClientMockRecorder) DeleteSCIMUser(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSCIMUser", reflect.TypeOf((*MockOrganizationClient)(nil).DeleteSCIMUser), arg0, arg1)
+}
+
 // UpdateProject mocks base method.
 func (m *MockOrganizationClient) UpdateProject(arg0 context.Context, arg1 string, arg2 *langfuse.UpdateProjectRequest) (*langfuse.Project, error) {
 	m.ctrl.T.Helper()
