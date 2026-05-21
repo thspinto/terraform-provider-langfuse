@@ -9,6 +9,7 @@ Langfuse is an open-source LLM engineering platform that provides observability,
 - 🏢 **Organization Management** - Create and manage Langfuse organizations
 - 🔑 **API Key Management** - Generate and manage organization and project API keys
 - 📦 **Project Management** - Create and configure projects within organizations
+- 🤖 **LLM Connections Management** - Configure and manage LLM API connections (OpenAI, Bedrock, Vertex AI, etc.)
 - 🛡️ **Enterprise Support** - Full support for Langfuse Enterprise features
 - ⚡ **Terraform Integration** - Native integration with Terraform workflows
 
@@ -287,6 +288,165 @@ resource "langfuse_organization_membership" "team" {
   role                     = "MEMBER"
   organization_public_key  = langfuse_organization_api_key.org_key.public_key
   organization_private_key = langfuse_organization_api_key.org_key.secret_key
+}
+```
+
+### `langfuse_project_membership`
+
+Manages project membership - adds users to projects and manages their project-level roles. Users must already exist in the organization before being added to a project.
+
+#### Arguments
+
+- `project_id` (String, Required, ForceNew) - The ID of the project to add the user to
+- `email` (String, Required, ForceNew) - The email address of the user to add to the project
+- `role` (String, Required) - The role to assign to the user. Valid values: `OWNER`, `ADMIN`, `MEMBER`, `VIEWER` or `NONE`
+- `organization_public_key` (String, Required, Sensitive, ForceNew) - Organization public key for authentication
+- `organization_private_key` (String, Required, Sensitive, ForceNew) - Organization private key for authentication
+
+#### Attributes
+
+- `id` (String) - The unique identifier of the project membership
+- `user_id` (String) - The unique identifier of the user
+- `name` (String) - The name of the user
+
+#### Behavior
+
+- **Role Updates**: The role can be updated after creation using Terraform `apply` with the updated role value
+- **Deletion**: When the resource is destroyed, the user is removed from the project (but not from the organization)
+- **Import Format**: `project_id,user_id,organization_public_key,organization_private_key`
+
+```hcl
+# Add a user to a project as admin
+resource "langfuse_project_membership" "admin" {
+  project_id               = langfuse_project.project.id
+  email                    = "admin@example.com"
+  role                     = "ADMIN"
+  organization_public_key  = langfuse_organization_api_key.org_key.public_key
+  organization_private_key = langfuse_organization_api_key.org_key.secret_key
+}
+
+# Add a user to a project as member
+resource "langfuse_project_membership" "member" {
+  project_id               = langfuse_project.project.id
+  email                    = "member@example.com"
+  role                     = "MEMBER"
+  organization_public_key  = langfuse_organization_api_key.org_key.public_key
+  organization_private_key = langfuse_organization_api_key.org_key.secret_key
+}
+
+# Add multiple users to a project
+resource "langfuse_project_membership" "team" {
+  for_each = toset([
+    "dev1@example.com",
+    "dev2@example.com",
+    "qa@example.com"
+  ])
+
+  project_id               = langfuse_project.project.id
+  email                    = each.value
+  role                     = "MEMBER"
+  organization_public_key  = langfuse_organization_api_key.org_key.public_key
+  organization_private_key = langfuse_organization_api_key.org_key.secret_key
+```
+
+### `langfuse_llm_connection`
+
+Manages LLM API connections for a Langfuse project. Supports OpenAI, Bedrock, Azure, Google Vertex AI, and custom providers. Each connection is uniquely identified by its `provider` name. Connections are upserted (created or updated) via the provider name; destroying the resource deletes the connection from Langfuse.
+
+#### Arguments
+
+- `project_public_key` (String, Required, Sensitive) - Project public key for authentication
+- `project_secret_key` (String, Required, Sensitive) - Project secret key for authentication
+- `provider_name` (String, Required, ForceNew) - Unique name for the LLM connection within the project. Changing this value destroys and recreates the resource.
+- `adapter` (String, Required) - LLM adapter type. Valid values: `anthropic`, `openai`, `azure`, `bedrock`, `google-vertex-ai`, `google-ai-studio`
+- `secret_key` (String, Required, Sensitive) - API key for the LLM provider
+- `base_url` (String, Optional) - Custom base URL for the LLM API
+- `custom_models` (List of String, Optional) - List of custom model names
+- `extra_headers` (Map of String, Optional, Sensitive) - Additional HTTP headers for LLM API requests
+- `with_default_models` (Bool, Optional, Computed) - Whether to include default models (defaults to true)
+- `config` (String, Optional) - Adapter-specific configuration as a JSON string
+
+#### Attributes
+
+- `id` (String) - The unique identifier (UUID) of the LLM connection
+- `adapter` (String) - The LLM adapter type
+- `provider_name` (String) - The provider name
+- `base_url` (String) - The base URL used
+- `custom_models` (List of String) - Custom model names
+- `with_default_models` (Bool) - Whether default models are included
+- `config` (String) - Adapter-specific config as JSON
+- `created_at` (String) - Timestamp when the connection was created
+- `updated_at` (String) - Timestamp when the connection was last updated
+
+#### Behavior
+
+- **Upsert Semantics**: Creating or updating this resource always upserts the connection in Langfuse by provider name. Changing `provider` destroys and recreates the resource.
+- **Delete**: Destroying the resource calls `DELETE /api/public/llm-connections/{id}` and removes the connection from Langfuse.
+- **Write-only Fields**: Sensitive fields like `secret_key` and `extra_headers` are preserved from the plan/state and not returned by the API.
+- **Config Validation**: Adapter-specific config requirements are enforced:
+  - **Bedrock**: `config` must be JSON with a `region` key, e.g. `{ "region": "us-east-1" }`
+  - **Google Vertex AI**: `config` may be omitted, but if provided must include a `location` key, e.g. `{ "location": "us-central1" }`
+  - **Other adapters**: `config` must be null or omitted
+- **Pagination**: Read operation paginates through all LLM connections to find the target provider.
+
+#### Example Usage
+
+```hcl
+# OpenAI connection
+resource "langfuse_llm_connection" "openai_prod" {
+  project_public_key  = "your-project-public-key"
+  project_secret_key  = "your-project-secret-key"
+  provider_name       = "openai-prod"
+  adapter             = "openai"
+  secret_key          = "sk-..."
+  with_default_models = true
+}
+
+# Bedrock connection with custom config
+resource "langfuse_llm_connection" "bedrock_prod" {
+  project_public_key  = "your-project-public-key"
+  project_secret_key  = "your-project-secret-key"
+  provider_name       = "bedrock-prod"
+  adapter             = "bedrock"
+  secret_key          = "AK..."
+  base_url            = "https://bedrock.aws.example.com"
+  custom_models       = ["my-bedrock-model"]
+  config              = jsonencode({ region = "us-east-1" })
+  with_default_models = false
+}
+
+# Google Vertex AI connection
+resource "langfuse_llm_connection" "vertex_ai_prod" {
+  project_public_key  = "your-project-public-key"
+  project_secret_key  = "your-project-secret-key"
+  provider_name       = "vertex-ai-prod"
+  adapter             = "google-vertex-ai"
+  secret_key          = "vertex-key"
+  config              = jsonencode({ location = "us-central1" })
+  with_default_models = true
+}
+
+# Azure connection
+resource "langfuse_llm_connection" "azure_prod" {
+  project_public_key  = "your-project-public-key"
+  project_secret_key  = "your-project-secret-key"
+  provider_name       = "azure-prod"
+  adapter             = "azure"
+  secret_key          = "azure-key"
+  with_default_models = true
+}
+
+# Custom provider with extra headers
+resource "langfuse_llm_connection" "my_gateway" {
+  project_public_key  = "your-project-public-key"
+  project_secret_key  = "your-project-secret-key"
+  provider_name       = "my-gateway"
+  adapter             = "openai"
+  secret_key          = "sk-custom"
+  extra_headers       = {
+    "X-My-Header" = "custom-value"
+  }
+  with_default_models = true
 }
 ```
 
